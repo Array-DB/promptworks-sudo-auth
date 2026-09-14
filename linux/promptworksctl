@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+AUTH_DIR=/etc/promptworks-auth
+BINDING="$AUTH_DIR/binding.json"
+PAM_BACKUP=/etc/pam.d/sudo.promptworks-backup
+UPDATE_GATE=/usr/local/libexec/promptworks-update-gate
+MANIFEST_TOOL=/usr/local/sbin/promptworks-backend-manifest
+UNLOCK_TICKET=/run/promptworks-backend-update-unlocked
+
+need_root() { [[ ${EUID} -eq 0 ]] || { echo "Run with sudo: sudo promptworksctl $*" >&2; exit 1; }; }
+
+status() {
+  need_root status
+  if [[ ! -r "$BINDING" ]]; then echo "PromptWorks: not paired"; exit 1; fi
+  python3 - "$BINDING" <<'PY'
+import json,sys
+p=json.load(open(sys.argv[1]))
+print('PromptWorks pairing: LOCKED 1:1')
+print('Host ID:       '+p.get('hostId',''))
+print('Device name:   '+p.get('deviceName',''))
+print('Device ID:     '+p.get('deviceId',''))
+print('Pairing ID:    '+p.get('pairingId',''))
+print('Phone key FP:  '+p.get('approvalKeyFingerprint',''))
+print('Host key FP:   '+p.get('hostKeyFingerprint',''))
+print('Ready at:      '+str(p.get('readyAt','')))
+PY
+  if [[ -x "$MANIFEST_TOOL" && -f "$AUTH_DIR/backend.manifest" ]]; then "$MANIFEST_TOOL" verify; else echo "Backend manifest: not installed"; fi
+}
+
+verify_binding() {
+  need_root verify-binding
+  [[ -f "$BINDING" && ! -L "$BINDING" ]] || { echo "PromptWorks binding missing or unsafe" >&2; exit 1; }
+  [[ $(stat -c %u "$BINDING") -eq 0 ]] || { echo "PromptWorks binding is not root-owned" >&2; exit 1; }
+  mode=$(stat -c %a "$BINDING"); (( (8#$mode & 0022) == 0 )) || { echo "PromptWorks binding is group/world-writable" >&2; exit 1; }
+  [[ -s "$AUTH_DIR/offline.key" && -s "$AUTH_DIR/paired-phone-approval.pub.pem" && -s "$AUTH_DIR/host-identity.pub.pem" ]] || { echo "PromptWorks binding material incomplete" >&2; exit 1; }
+  python3 - "$BINDING" <<'PY'
+import json,re,sys
+p=json.load(open(sys.argv[1]))
+for k in ('pairingId','hostId','hostKeyFingerprint','deviceId','approvalKeyFingerprint'):
+    if not p.get(k): raise SystemExit('missing '+k)
+for k in ('hostKeyFingerprint','approvalKeyFingerprint'):
+    if not re.fullmatch(r'[0-9a-fA-F]{64}',p[k]): raise SystemExit('invalid '+k)
+PY
+  echo "PromptWorks 1:1 binding verified"
+}
+
+authorize_change() {
+  need_root authorize-change
+  [[ -x "$UPDATE_GATE" ]] || { echo "PromptWorks update gate is not installed" >&2; exit 1; }
+  "$UPDATE_GATE" --purpose "${1:-PromptWorks backend maintenance}"
+  umask 077
+  printf '%s\n' "$(( $(date +%s) + 120 ))" > "$UNLOCK_TICKET"
+  chown root:root "$UNLOCK_TICKET"; chmod 0600 "$UNLOCK_TICKET"
+  echo "Backend maintenance authorization valid for 120 seconds."
+}
+
+require_ticket() {
+  [[ -r "$UNLOCK_TICKET" ]] || { echo "No active PromptWorks backend-maintenance approval. Run: sudo promptworksctl authorize-change" >&2; exit 1; }
+  local exp; exp="$(cat "$UNLOCK_TICKET" 2>/dev/null || echo 0)"
+  [[ "$exp" =~ ^[0-9]+$ ]] || exp=0
+  (( $(date +%s) <= exp )) || { rm -f "$UNLOCK_TICKET"; echo "PromptWorks backend-maintenance approval expired." >&2; exit 1; }
+}
+
+verify_backend() {
+  need_root verify-backend
+  [[ -x "$MANIFEST_TOOL" ]] || { echo "PromptWorks backend manifest tool missing" >&2; exit 1; }
+  "$MANIFEST_TOOL" verify
+}
+
+relock_backend() {
+  need_root relock-backend
+  require_ticket
+  [[ -x "$MANIFEST_TOOL" ]] || { echo "PromptWorks backend manifest tool missing" >&2; exit 1; }
+  "$MANIFEST_TOOL" create
+  rm -f "$UNLOCK_TICKET"
+  # Best-effort immutable flags. These are defense-in-depth only; root can remove them.
+  if command -v chattr >/dev/null 2>&1; then
+    for f in "$AUTH_DIR/backend.manifest" /usr/local/sbin/promptworksctl /usr/local/libexec/promptworks-update-gate /usr/local/sbin/promptworks-backend-manifest; do
+      [[ -f "$f" ]] && chattr +i "$f" 2>/dev/null || true
+    done
+  fi
+  echo "PromptWorks backend relocked and manifest refreshed."
+}
+
+reset_pairing() {
+  need_root reset-pairing
+  echo "This permanently breaks the current phone ↔ Linux PromptWorks pairing."
+  echo "The current enrolled APK must approve this protected backend change."
+  authorize_change "RESET the PromptWorks pairing and remove the sudo second factor"
+  read -r -p 'Type RESET PROMPTWORKS PAIRING to continue: ' answer
+  [[ "$answer" == "RESET PROMPTWORKS PAIRING" ]] || { rm -f "$UNLOCK_TICKET"; echo "Cancelled."; exit 1; }
+  # Remove best-effort immutable flags before managed deletion.
+  if command -v chattr >/dev/null 2>&1; then
+    chattr -i "$AUTH_DIR/backend.manifest" /usr/local/sbin/promptworksctl /usr/local/libexec/promptworks-update-gate /usr/local/sbin/promptworks-backend-manifest 2>/dev/null || true
+  fi
+  if [[ -f "$PAM_BACKUP" ]]; then cp -a "$PAM_BACKUP" /etc/pam.d/sudo; fi
+  systemctl disable --now promptworks-binding-guard.service >/dev/null 2>&1 || true
+  systemctl disable --now promptworks-auth-server.service >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/promptworks-binding-guard.service /etc/systemd/system/promptworks-auth-server.service
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  rm -f /usr/lib/security/pam_promptworks.so /usr/lib/x86_64-linux-gnu/security/pam_promptworks.so /lib/x86_64-linux-gnu/security/pam_promptworks.so
+  for f in "$AUTH_DIR/offline.key" "$AUTH_DIR/host-identity.key.pem" "$AUTH_DIR/pairing-master.key"; do [[ -f "$f" ]] && (shred -u "$f" 2>/dev/null || rm -f "$f"); done
+  rm -f "$AUTH_DIR/binding.json" "$AUTH_DIR/paired-phone-approval.pub.pem" "$AUTH_DIR/host-identity.pub.pem" "$AUTH_DIR/pairing-id" "$AUTH_DIR/host-id" "$AUTH_DIR/backend.manifest"
+  rm -rf /var/lib/promptworks-auth-guard
+  rm -f "$UNLOCK_TICKET"
+  echo "PromptWorks pairing reset complete. Rerun ./install-promptworks.sh to bind exactly one phone again."
+}
+
+case "${1:-status}" in
+  status) status ;;
+  verify-binding) verify_binding ;;
+  verify-backend) verify_backend ;;
+  authorize-change) shift; authorize_change "${*:-PromptWorks backend maintenance}" ;;
+  relock-backend) relock_backend ;;
+  reset-pairing) reset_pairing ;;
+  *) echo "Usage: promptworksctl {status|verify-binding|verify-backend|authorize-change [purpose]|relock-backend|reset-pairing}" >&2; exit 2 ;;
+esac

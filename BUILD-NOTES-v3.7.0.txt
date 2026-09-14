@@ -1,0 +1,25 @@
+PromptWorks Sudo Auth v3.7.0 build notes
+
+Implemented in this source package:
+- Side-by-side Android package: com.promptworks.sudoauth.secure.v37
+- Runtime UI redesigned around the supplied dark/cyan reference screens
+- Runtime screen has no vertical scrolling
+- 3-digit number match is delivered from the bound backend
+- Foreground Android runtime listener posts high-priority sudo notifications
+- Notification opens PromptWorks directly
+- APPROVE / DENY still requires BIOMETRIC_STRONG signing
+- PAM receives approval/denial automatically; no decision code typing
+- Terminal shows only a masked receipt: **** + last four digits
+- Bound HTTPS backend remains active at runtime for notification/decision delivery
+- Upgrade rollback prefers the previous PromptWorks PAM/backend binding, not original sudo mode
+
+Validation completed in the sandbox:
+- bash syntax checks: passed
+- Python runtime bridge syntax: passed
+- existing binding/time-match/OCRA tests: passed
+- v3.7 side-by-side upgrade-layout test: passed
+
+APK build status:
+- Source is prepared for Android build.
+- The sandbox could not download the Gradle 8.11.1 distribution because external DNS/network access is blocked, so no APK binary is included.
+- On a normal connected Linux build host, run: cd android && ./gradlew clean assembleDebug

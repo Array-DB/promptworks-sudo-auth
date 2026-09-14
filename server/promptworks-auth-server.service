@@ -1,0 +1,22 @@
+[Unit]
+Description=PromptWorks Auth Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=promptworks-server
+Group=promptworks-server
+WorkingDirectory=/opt/promptworks-auth-server
+EnvironmentFile=/etc/promptworks-server/server.env
+ExecStart=/usr/bin/node /opt/promptworks-auth-server/dist/index.js
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/promptworks-server
+
+[Install]
+WantedBy=multi-user.target

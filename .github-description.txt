@@ -1,0 +1,1 @@
+Hardware-backed Android approval for Linux sudo with paired Pixel/GrapheneOS APK, PAM integration, time-limited number matching, and protected backend upgrades.

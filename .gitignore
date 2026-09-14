@@ -1,0 +1,38 @@
+node_modules/
+dist/
+*.sqlite*
+server/.env
+android/.gradle/
+android/local.properties
+android/app/build/
+linux/daemon/promptworksd
+linux/pam/pam_promptworks.so
+
+# Local/generated Android artifacts
+android/app-debug.apk
+*.apk
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Android generated reports/build output
+android/build/
+*.backup
+
+# PromptWorks local/generated secrets
+.promptworks-*/
+*.keystore
+*.jks
+*.p12
+*.key
+*.pem
+!android/app/src/main/res/raw/promptworks_server_ca.pem
+/etc/promptworks-auth/
+/etc/promptworks-auth-server/
+
+# Python generated files
+__pycache__/
+*.py[cod]

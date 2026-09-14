@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+LOG=/var/log/promptworks-auth-rollback.log
+exec >>"$LOG" 2>&1
+printf '[%s] Prompt-Works automatic commissioning rollback started\n' "$(date -Is)"
+
+# Restore the exact pre-install sudo PAM configuration first. This is the critical step.
+# Upgrade rollback prefers the previous PromptWorks PAM/backend binding. It must never
+# drop an already-protected machine back to the distro/original sudo stack.
+if [[ -d /var/lib/promptworks-backend-fallback && -f /var/lib/promptworks-backend-fallback/SNAPSHOT_COMPLETE ]]; then
+  printf '[%s] restoring previous PromptWorks PAM/backend binding\n' "$(date -Is)"
+  [[ -f /var/lib/promptworks-backend-fallback/sudo.pam ]] && cp -a /var/lib/promptworks-backend-fallback/sudo.pam /etc/pam.d/sudo
+  if [[ -d /var/lib/promptworks-backend-fallback/auth-dir ]]; then
+    rm -rf /etc/promptworks-auth
+    cp -a /var/lib/promptworks-backend-fallback/auth-dir /etc/promptworks-auth
+  fi
+  if [[ -f /var/lib/promptworks-backend-fallback/pam_promptworks.so && -f /var/lib/promptworks-backend-fallback/pam-path ]]; then
+    pam_path="$(cat /var/lib/promptworks-backend-fallback/pam-path)"
+    install -Dm755 /var/lib/promptworks-backend-fallback/pam_promptworks.so "$pam_path"
+  fi
+  if [[ -f /var/lib/promptworks-backend-fallback/guard-state ]]; then
+    install -Dm600 /var/lib/promptworks-backend-fallback/guard-state /var/lib/promptworks-auth-guard/state
+  fi
+  if [[ -f /var/lib/promptworks-backend-fallback/server-was-active ]]; then
+    systemctl restart promptworks-auth-server.service 2>/dev/null || true
+  else
+    systemctl stop promptworks-auth-server.service 2>/dev/null || true
+  fi
+  # Stop only the failed NEW candidate/runtime backend. Never stop the restored OLD backend.
+  systemctl disable --now promptworks-auth-server-v378.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v379.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v380.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v381.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v382.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v391.service 2>/dev/null || true
+  systemctl disable --now promptworks-auth-server-v377.service 2>/dev/null || true
+  rm -f /var/lib/promptworks-upgrade-mode
+  printf '[%s] previous PromptWorks backend restored; original mode was NOT enabled\n' "$(date -Is)"
+  exit 0
+fi
+
+# If this machine is in a protected PromptWorks-to-PromptWorks upgrade, never
+# fall through to the distro/original PAM backup. Missing/incomplete fallback is
+# a hard failure so the protection boundary cannot silently downgrade.
+if [[ -f /var/lib/promptworks-upgrade-mode ]]; then
+  printf '[%s] ERROR: protected upgrade fallback snapshot is missing/incomplete; refusing original-mode rollback\n' "$(date -Is)"
+  exit 2
+fi
+
+if [[ -f /etc/pam.d/sudo.promptworks-backup ]]; then
+  cp -a /etc/pam.d/sudo.promptworks-backup /etc/pam.d/sudo
+  printf '[%s] restored /etc/pam.d/sudo\n' "$(date -Is)"
+fi
+
+
+# Disable the binding guard and any legacy online-daemon artifacts.
+systemctl disable --now promptworks-binding-guard.service 2>/dev/null || true
+rm -f /etc/systemd/system/promptworks-binding-guard.service
+
+# Remove any legacy online-daemon artifacts from pre-v3.3 installs as well.
+systemctl disable --now promptworksd.service 2>/dev/null || true
+rm -f /usr/local/sbin/promptworksd /etc/systemd/system/promptworksd.service
+systemctl daemon-reload 2>/dev/null || true
+
+# Remove the installed PAM module from known and multiarch locations.
+rm -f /usr/lib/security/pam_promptworks.so 2>/dev/null || true
+find /usr/lib /lib -type f -path '*/security/pam_promptworks.so' -delete 2>/dev/null || true
+
+for f in /etc/promptworks-auth/offline.key /etc/promptworks-auth/host-identity.key.pem /etc/promptworks-auth/pairing-master.key; do
+  if [[ -f "$f" ]]; then shred -u "$f" 2>/dev/null || rm -f "$f"; fi
+done
+rm -rf /etc/promptworks-auth
+printf '[%s] Prompt-Works automatic commissioning rollback completed\n' "$(date -Is)"

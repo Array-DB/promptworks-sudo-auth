@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+MANIFEST=/etc/promptworks-auth/backend.manifest
+MODE=${1:-verify}
+find_pam() {
+  for p in /usr/lib/security/pam_promptworks.so /usr/lib/x86_64-linux-gnu/security/pam_promptworks.so /lib/x86_64-linux-gnu/security/pam_promptworks.so; do
+    [[ -f "$p" ]] && { printf '%s\n' "$p"; return 0; }
+  done
+  return 1
+}
+files() {
+  local pam
+  pam="$(find_pam)" || return 1
+  printf '%s\n' \
+    "$pam" \
+    /usr/local/sbin/promptworksctl \
+    /usr/local/libexec/promptworks-update-gate \
+    /usr/local/sbin/promptworks-backend-manifest \
+    /etc/systemd/system/promptworks-binding-guard.service \
+    /etc/pam.d/sudo
+}
+[[ $EUID -eq 0 ]] || { echo "Run as root" >&2; exit 2; }
+case "$MODE" in
+  create)
+    tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
+    while IFS= read -r f; do [[ -f "$f" ]] || { echo "Missing backend file: $f" >&2; exit 3; }; sha256sum "$f" >>"$tmp"; done < <(files)
+    install -o root -g root -m 0400 "$tmp" "$MANIFEST"
+    echo "PromptWorks backend integrity manifest created."
+    ;;
+  verify)
+    [[ -f "$MANIFEST" && ! -L "$MANIFEST" ]] || { echo "PromptWorks backend manifest missing or unsafe" >&2; exit 4; }
+    [[ $(stat -c %u "$MANIFEST") -eq 0 ]] || { echo "PromptWorks backend manifest is not root-owned" >&2; exit 4; }
+    (cd / && sha256sum -c "$MANIFEST") >/dev/null || { echo "PromptWorks backend integrity verification FAILED" >&2; exit 5; }
+    echo "PromptWorks backend integrity verified"
+    ;;
+  *) echo "Usage: promptworks-backend-manifest {create|verify}" >&2; exit 2 ;;
+esac

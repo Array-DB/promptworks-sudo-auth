@@ -1,0 +1,26 @@
+[Unit]
+Description=PromptWorks single-device binding and backend integrity check
+After=local-fs.target
+ConditionPathExists=/etc/promptworks-auth/binding.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/promptworksctl verify-binding
+ExecStart=/usr/local/sbin/promptworksctl verify-backend
+User=root
+Group=root
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadOnlyPaths=/etc/promptworks-auth /etc/pam.d /usr/local/sbin /usr/local/libexec
+
+[Install]
+WantedBy=multi-user.target

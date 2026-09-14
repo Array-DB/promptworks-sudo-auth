@@ -1,0 +1,149 @@
+PromptWorks Dual License v1.0
+
+Copyright (c) PromptWorks
+
+# PREAMBLE
+
+The PromptWorks Dual License encourages open research, education,
+experimentation, and community collaboration while protecting the
+long-term sustainability of PromptWorks technologies.
+
+The Community Edition permits source access, modification, and
+non-commercial redistribution under the terms below.
+
+Commercial use requires a separate PromptWorks Commercial License.
+
+1. COMMUNITY EDITION
+
+---
+
+You may:
+
+- Use for personal projects
+- Use for research
+- Use for education
+- Study the source
+- Modify the source
+- Create derivative works
+- Redistribute the source
+- Publish improvements
+
+2. ATTRIBUTION
+
+---
+
+You must retain:
+
+- This license
+- Copyright notices
+- PromptWorks attribution
+
+Suggested attribution:
+Powered by PromptWorks AGI-G0
+
+3. SOURCE AVAILABILITY
+
+---
+
+Modified distributions must include the corresponding source code under
+this same License.
+
+4. CONTRIBUTIONS
+
+---
+
+Contributors retain copyright to their work while granting PromptWorks
+a perpetual, worldwide, non-exclusive, royalty-free license to use,
+modify, distribute, sublicense, and incorporate those contributions
+into both Community and Commercial editions.
+
+5. NON-COMMERCIAL USE
+
+---
+
+Without a Commercial License you may NOT:
+
+- Sell the Software
+- Sell derivative works
+- Offer paid SaaS or hosted APIs
+- Bundle into commercial products
+- White-label the Software
+- Generate commercial revenue using the Software
+- Remove PromptWorks attribution or trademarks
+
+Reasonable media/shipping costs are permitted.
+
+6. COMMERCIAL LICENSE
+
+---
+
+Required for:
+
+- SaaS
+- Hosted APIs
+- Enterprise commercial deployment
+- OEM integration
+- Paid consulting centered on the Software
+- Commercial redistribution
+- Proprietary products
+
+7. PATENTS
+
+---
+
+Contributors grant a royalty-free patent license covering their
+contributions. This grant terminates if the licensee initiates patent
+litigation regarding the Software.
+
+8. TRADEMARKS
+
+---
+
+No trademark rights are granted.
+
+9. AI MODELS
+
+---
+
+Third-party models remain governed by their own licenses.
+
+10. TERMINATION
+
+---
+
+Rights terminate automatically upon material violation and are
+automatically reinstated if the first violation is corrected within
+30 days of notice.
+
+11. DISCLAIMER
+
+---
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+
+12. DEFINITIONS
+
+---
+
+Software: Source code, documentation, assets, and derivative works.
+Commercial Use: Activity intended to generate commercial advantage.
+Contribution: Code, documentation, tests, or assets intentionally
+submitted to the project.
+
+## COMMERCIAL LICENSING
+
+Contact PromptWorks for commercial licensing.
+
+## LICENSE SUMMARY
+
+Personal use                 YES
+Research                     YES
+Education                    YES
+Modify                       YES
+Redistribute                 YES
+Commercial SaaS              NO*
+Enterprise Commercial Use    NO*
+OEM                          NO*
+Paid Consulting              NO*
+
+* Requires a PromptWorks Commercial License.
